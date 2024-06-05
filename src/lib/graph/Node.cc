@@ -26,6 +26,7 @@ void TriangleNode::update_points()
     {
         points[2] = edges[1]->points[0];
     }
+    center = (points[0]+points[1]+points[2])/3;
 }
 
 TriangleNode * get_other_triangle(std::shared_ptr<Edge> &edge_p, TriangleNode *tr_p)
