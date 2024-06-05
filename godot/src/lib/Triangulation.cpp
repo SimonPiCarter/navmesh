@@ -1,5 +1,6 @@
 #include "Triangulation.h"
 
+
 namespace godot {
 
 void Triangulation::init(int x, int y)
@@ -10,6 +11,7 @@ void Triangulation::init(int x, int y)
     triangles_l.push_back(Triangle({x,y}, {x,0}, {0,y}));
 
 	_graph = createTriangleGraphFromTriangleList(triangles_l);
+	_path_graph = createFromTriangleGraph(*_graph);
 	_size_x = x;
 	_size_y = y;
 
@@ -22,14 +24,20 @@ void Triangulation::insert_point(int x, int y)
 	{
     	::insert_point({x, y}, *_graph);
 	}
+	_path_graph = createFromTriangleGraph(*_graph);
 	// reset selection
 	_selected = -1;
+	_path = {};
 	queue_redraw();
 }
 
 void Triangulation::select(int x, int y)
 {
+	int old_l = _selected;
 	int idx_l = 0;
+	// reset selection
+	_selected = -1;
+	_path = {};
 	for(TriangleNode const *tr_l : _graph->nodes)
 	{
 		if(is_inside(*tr_l, Point {x, y}))
@@ -38,6 +46,10 @@ void Triangulation::select(int x, int y)
 			break;
 		}
 		++idx_l;
+	}
+	if(old_l>=0 && _selected>=0)
+	{
+		_path = shortest_path(_path_graph, _path_graph.nodes[old_l], _path_graph.nodes[_selected]);
 	}
 	queue_redraw();
 }
@@ -62,11 +74,23 @@ void Triangulation::_draw()
 		{
 			for(size_t i = 0 ; i < 3 ; ++ i)
 			{
+				Color color_l = Color(1.,1.,1.,1.);
+				double thickness_l = -1.;
+				if(_selected == idx_l)
+				{
+					color_l = Color(0.,1.,0.,1.);
+					thickness_l = 2.;
+				}
+				else if(std::find(_path.begin(), _path.end(), static_cast<size_t>(idx_l)) != _path.end())
+				{
+					color_l = Color(0.,0.,1.,1.);
+					thickness_l = 2.;
+				}
 				draw_line(
 					Vector2(tr->edges[i]->points[0].x, tr->edges[i]->points[0].y),
 					Vector2(tr->edges[i]->points[1].x, tr->edges[i]->points[1].y),
-					_selected == idx_l?Color(0.,1.,0.,1.):Color(1.,1.,1.,1.),
-					_selected == idx_l?2.:-1.
+					color_l,
+					thickness_l
 				);
 			}
 			++idx_l;

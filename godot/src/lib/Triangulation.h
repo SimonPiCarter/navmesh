@@ -29,9 +29,11 @@ public:
 
 private:
 	TriangleGraph *_graph = nullptr;
+	Graph _path_graph;
 	int _size_x = 0;
 	int _size_y = 0;
 	int _selected = 0;
+	std::vector<std::size_t> _path;
 };
 
 }
