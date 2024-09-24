@@ -15,6 +15,7 @@ struct Node
     std::size_t id = 0;
     Triangle const * triangle = nullptr;
     std::vector<std::size_t> neighbours;
+	bool forbidden = false;
 };
 
 struct TriangleNode;

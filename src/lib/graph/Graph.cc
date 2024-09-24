@@ -3,6 +3,24 @@
 #include <unordered_map>
 #include "topology/shapes/Triangle.hh"
 
+std::list<TriangleNode *>::iterator remove_triangle(std::list<TriangleNode *>::iterator it_p, TriangleGraph &graph_p)
+{
+	TriangleNode * triangle_l = *it_p;
+	for(std::shared_ptr<Edge> &edge_l : triangle_l->edges)
+	{
+		if (edge_l->tr1 == triangle_l)
+		{
+			edge_l->tr1 = nullptr;
+		}
+		else if(edge_l->tr2 == triangle_l)
+		{
+			edge_l->tr2 = nullptr;
+		}
+	}
+	delete triangle_l;
+	return graph_p.nodes.erase(it_p);
+}
+
 Graph createFromTriangleList(std::vector<Triangle> const &triangles_p)
 {
 	Graph graph_l;
@@ -208,6 +226,10 @@ std::vector<std::size_t> shortest_path(Graph const &graph_p, Node const &source_
 		}
 		for(std::size_t n : node_l.neighbours)
 		{
+			if(graph_p.nodes[n].forbidden)
+			{
+				continue;
+			}
 			long long cost_l = cur_l->cost + cost(graph_p.nodes[cur_l->node], graph_p.nodes[n]);
 			long long heur_l = cost_l + heuristic(graph_p.nodes[n], target_p);
 			if(!labels[n].closed && (!labels[n].opened || labels[n].heuristic > heur_l))

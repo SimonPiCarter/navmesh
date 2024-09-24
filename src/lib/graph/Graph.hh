@@ -16,6 +16,9 @@ struct TriangleGraph
     ~TriangleGraph() { for(auto && node_l : nodes) delete node_l; }
 };
 
+// TriangleGraph
+std::list<TriangleNode *>::iterator remove_triangle(std::list<TriangleNode *>::iterator it_p, TriangleGraph &graph_p);
+
 std::ostream & print_graph(std::ostream &oss_p, TriangleGraph const &g);
 
 Graph createFromTriangleList(std::vector<Triangle> const &triangles_p);
