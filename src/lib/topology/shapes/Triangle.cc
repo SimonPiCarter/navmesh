@@ -62,15 +62,27 @@ bool is_inside_circle(Triangle const &tr, Point const &p)
     }
 }
 
-bool is_inside(Triangle const &tr, Point const &p)
+long long sign (Point p1, Point p2, Point p3)
+{
+    return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+}
+
+bool is_inside(Triangle const &tr, Point const &pt)
 {
     Point const &a = tr.points[0];
     Point const &b = tr.points[1];
     Point const &c = tr.points[2];
-    bool b0 = Point(p.x - a.x, p.y - a.y) * Point(a.y - b.y, b.x - a.x) > 0;
-    bool b1 = Point(p.x - b.x, p.y - b.y) * Point(b.y - c.y, c.x - b.x) > 0;
-    bool b2 = Point(p.x - c.x, p.y - c.y) * Point(c.y - a.y, a.x - c.x) > 0;
-    return (b0 == b1 && b1 == b2);
+    long long d1, d2, d3;
+    bool has_neg, has_pos;
+
+    d1 = sign(pt, a, b);
+    d2 = sign(pt, b, c);
+    d3 = sign(pt, c, a);
+
+    has_neg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+    has_pos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+
+    return !(has_neg && has_pos);
 }
 
 std::string draw_line(Point const &a, Point const &b)

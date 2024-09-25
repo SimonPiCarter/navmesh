@@ -7,7 +7,7 @@
 
 #include "graph/Graph.hh"
 
-std::shared_ptr<Edge> get_common_edge(TriangleNode const *a, TriangleNode const *b)
+std::shared_ptr<Edge> &get_common_edge(TriangleNode *a, TriangleNode const *b)
 {
     for(size_t i = 0 ; i < 3 ; ++ i)
     {
@@ -19,7 +19,8 @@ std::shared_ptr<Edge> get_common_edge(TriangleNode const *a, TriangleNode const 
             }
         }
     }
-    return std::shared_ptr<Edge>();
+    static std::shared_ptr<Edge> default_l;
+    return default_l;
 }
 
 std::list<TriangleNode *>::iterator get_triangle(Point const &new_p, TriangleGraph &graph_p)
@@ -291,6 +292,10 @@ void insert_point(Point const &new_p, TriangleGraph &graph_p)
 {
     auto && it_l = get_triangle(new_p, graph_p);
     TriangleNode * node_l = *it_l;
+    if(has_point(new_p, *node_l))
+    {
+        return;
+    }
 
     // Split triangle in three
     std::array<TriangleNode *, 3> new_triangles_l = split_node(new_p, node_l);
