@@ -8,6 +8,7 @@
 
 #include "graph/Graph.hh"
 #include "graph/triangulation/Delaunay.hh"
+#include "CDT.h"
 
 namespace godot {
 
@@ -15,9 +16,13 @@ class Triangulation : public Node2D {
 	GDCLASS(Triangulation, Node2D)
 
 public:
+	Triangulation() : cdt(CDT::detail::defaults::vertexInsertionOrder, CDT::IntersectingConstraintEdges::TryResolve, 0.001) {}
 	~Triangulation() { delete _graph; }
 	void init(int x, int y);
-	void insert_point(int x, int y, int forbidden);
+	int insert_point(int x, int y, int forbidden);
+	void insert_edge(int idx_point_1, int idx_point_2);
+	void finalize();
+
 	void select(int x, int y);
 
 	void _physics_process(double delta_p) override;
@@ -28,13 +33,14 @@ public:
 	static void _bind_methods();
 
 private:
-	TriangleGraph *_graph = nullptr;
-	Graph _path_graph;
+	CDT::Triangulation<double> cdt;
+	std::vector<std::pair<CDT::VertInd, CDT::VertInd> > edges;
+	std::vector<bool> forbidden_triangles;
+
 	int _size_x = 0;
 	int _size_y = 0;
-	int _selected = 0;
+	int _selected = -1;
 	std::vector<std::size_t> _path;
-	std::unordered_map<int, std::unordered_map<int, int> > forbidden_points;
 };
 
 }

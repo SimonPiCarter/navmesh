@@ -1,52 +1,124 @@
 #include "Triangulation.h"
 
 #include <godot_cpp/variant/utility_functions.hpp>
+#include <algorithm>
+
+#include "ShortestPath.h"
 
 namespace godot {
 
 void Triangulation::init(int x, int y)
 {
-    std::vector<Triangle> triangles_l;
-
-    triangles_l.push_back(Triangle({0,0}, {x,0}, {0,y}));
-    triangles_l.push_back(Triangle({x,y}, {x,0}, {0,y}));
-
-	_graph = createTriangleGraphFromTriangleList(triangles_l);
-	_path_graph = createFromTriangleGraph(*_graph);
 	_size_x = x;
 	_size_y = y;
+
+	cdt.insertVertices({{0,0},{x,0},{x,y},{0,y},
+		{x/2-50,y/2-50},
+		{x/2-50,y/2+50},
+		{x/2+50,y/2+50},
+		{x/2+50,y/2-50},
+		{100+x/2+50,y/2+50},
+		{100+x/2+50,y/2-50}
+	});
+	insert_edge(3,0);
+	insert_edge(2,3);
+	insert_edge(1,2);
+	insert_edge(0,1);
+	insert_edge(4,5);
+	insert_edge(5,6);
+	insert_edge(6,7);
+	insert_edge(7,4);
+	insert_edge(4,5);
+	insert_edge(5,8);
+	insert_edge(8,9);
+	insert_edge(9,4);
 
 	queue_redraw();
 }
 
-void Triangulation::insert_point(int x, int y, int forbidden)
+int Triangulation::insert_point(int x, int y, int forbidden)
 {
-	forbidden_points[x][y] = forbidden;
-	if(x >= 0 && x <= _size_x && y >= 0 && y <= _size_y && _graph)
+	int i = 0;
+	for(auto &&v : cdt.vertices)
 	{
-    	::insert_point({x, y}, *_graph);
+		if(v.x ==x && v.y ==y)
+		{
+			return i-3;
+		}
+		++i;
 	}
+	cdt.insertVertices({{x,y}});
+	int idx = cdt.vertices.size()-4;
 
-	for(auto &&it_l = _graph->nodes.begin(); _graph->nodes.end() != it_l ;)
-	{
-		TriangleNode * node_l = *it_l;
-		int idx_1 = forbidden_points[node_l->points[0].x][node_l->points[0].y];
-		int idx_2 = forbidden_points[node_l->points[1].x][node_l->points[1].y];
-		int idx_3 = forbidden_points[node_l->points[2].x][node_l->points[2].y];
-		if(idx_1 == idx_2 && idx_2 == idx_3 && idx_1 != 0)
-		{
-			it_l = remove_triangle(it_l, *_graph);
-		}
-		else
-		{
-			it_l++;
-		}
-	}
-	_path_graph = createFromTriangleGraph(*_graph);
 	// reset selection
 	_selected = -1;
 	_path = {};
+
+	forbidden_triangles.resize(cdt.triangles.size(), false);
 	queue_redraw();
+
+	return idx;
+}
+
+void Triangulation::insert_edge(int idx_point_1, int idx_point_2)
+{
+	cdt.insertEdges({CDT::Edge(idx_point_1,idx_point_2)});
+	edges.push_back(std::make_pair(idx_point_1+3, idx_point_2+3));
+	forbidden_triangles.resize(cdt.triangles.size(), false);
+}
+
+bool containsPoint(CDT::V2d<double> lineP, CDT::V2d<double> lineQ, CDT::V2d<double> point)
+{
+    bool xBetween = ((point.x - lineP.x) * (point.x - lineQ.x) <= 0.f);
+    bool yBetween = ((point.y - lineP.y) * (point.y - lineQ.y) <= 0.f);
+    if (!xBetween || !yBetween) { // early return or can be moved to the end
+        return false;
+    }
+    float dxPQ = lineQ.x - lineP.x;
+    float dyPQ = lineQ.y - lineP.y;
+    float lineLengthSquared = dxPQ*dxPQ + dyPQ*dyPQ;
+    float crossproduct = (point.y - lineP.y) * dxPQ - (point.x - lineP.x) * dyPQ;
+    float tolerance = std::numeric_limits<float>::epsilon();
+    return crossproduct * crossproduct <= lineLengthSquared * tolerance * tolerance;
+}
+
+void Triangulation::finalize()
+{
+	forbidden_triangles.clear();
+	forbidden_triangles.resize(cdt.triangles.size(), false);
+	size_t i = 0;
+	for(CDT::Triangle const &tr : cdt.triangles)
+	{
+		for(auto const &edge_l : edges)
+		{
+			bool p0_on_edge_l = containsPoint(cdt.vertices[edge_l.first], cdt.vertices[edge_l.second], cdt.vertices[tr.vertices[0]]);
+			bool p1_on_edge_l = containsPoint(cdt.vertices[edge_l.first], cdt.vertices[edge_l.second], cdt.vertices[tr.vertices[1]]);
+			bool p2_on_edge_l = containsPoint(cdt.vertices[edge_l.first], cdt.vertices[edge_l.second], cdt.vertices[tr.vertices[2]]);
+			if((p0_on_edge_l && p1_on_edge_l)
+			|| (p0_on_edge_l && p2_on_edge_l)
+			|| (p1_on_edge_l && p2_on_edge_l))
+			{
+				CDT::VertInd v = tr.vertices[0];
+				if(p0_on_edge_l && p1_on_edge_l)
+				{
+					v = tr.vertices[2];
+				}
+				if(p0_on_edge_l && p2_on_edge_l)
+				{
+					v = tr.vertices[1];
+				}
+				CDT::PtLineLocation::Enum pos = CDT::locatePointLine(cdt.vertices[v], cdt.vertices[edge_l.first], cdt.vertices[edge_l.second]);
+				if(pos == CDT::PtLineLocation::Right)
+				{
+					forbidden_triangles[i] = true;
+				}
+			}
+		}
+		++i;
+	}
+	queue_redraw();
+	// cdt.eraseOuterTrianglesAndHoles();
+	// queue_redraw();
 }
 
 void Triangulation::select(int x, int y)
@@ -56,9 +128,12 @@ void Triangulation::select(int x, int y)
 	// reset selection
 	_selected = -1;
 	_path = {};
-	for(TriangleNode const *tr_l : _graph->nodes)
+	for(CDT::Triangle const &tr : cdt.triangles)
 	{
-		if(is_inside(*tr_l, Point {x, y}))
+		if(CDT::locatePointTriangle({x,y},
+			cdt.vertices[tr.vertices[0]],
+			cdt.vertices[tr.vertices[1]],
+			cdt.vertices[tr.vertices[2]]) != CDT::PtTriLocation::Outside )
 		{
 			_selected = idx_l;
 			break;
@@ -67,12 +142,13 @@ void Triangulation::select(int x, int y)
 	}
 	if(old_l>=0 && _selected>=0)
 	{
-		_path = shortest_path(_path_graph, _path_graph.nodes[old_l], _path_graph.nodes[_selected]);
+		_path = CDT::shortest_path(cdt, old_l, _selected, forbidden_triangles);
 		UtilityFunctions::print("path");
 		for(size_t i : _path)
 		{
 			UtilityFunctions::print("\t", i);
 		}
+		_selected = -1;
 	}
 	queue_redraw();
 }
@@ -85,44 +161,58 @@ void Triangulation::_bind_methods()
 {
 	ClassDB::bind_method(D_METHOD("init"), &Triangulation::init);
 	ClassDB::bind_method(D_METHOD("insert_point", "x", "y"), &Triangulation::insert_point);
+	ClassDB::bind_method(D_METHOD("insert_edge", "x", "y"), &Triangulation::insert_edge);
+	ClassDB::bind_method(D_METHOD("finalize"), &Triangulation::finalize);
 	ClassDB::bind_method(D_METHOD("select", "x", "y"), &Triangulation::select);
 }
 
 void Triangulation::_draw()
 {
-	if(_graph)
+	size_t i = 0;
+	for(auto && tr : cdt.triangles)
 	{
-		int idx_l = 0;
-		for(::Node const &node : _path_graph.nodes)
+		if(forbidden_triangles[i])
 		{
-			for(size_t i = 0 ; i < 3 ; ++ i)
-			{
-				Color color_l = Color(1.,1.,1.,1.);
-				double thickness_l = -1.;
-				if(_selected == idx_l)
-				{
-					color_l = Color(0.,1.,0.,1.);
-					thickness_l = 2.;
-				}
-				else if(std::find(_path.begin(), _path.end(), static_cast<size_t>(idx_l)) != _path.end())
-				{
-					color_l = Color(0.,0.,1.,1.);
-					thickness_l = 2.;
-				}
-				else if(node.forbidden)
-				{
-					color_l = Color(1.,0.,0.,1.);
-					thickness_l = 2.;
-				}
-				draw_line(
-					Vector2(node.triangle->points[i].x, node.triangle->points[i].y),
-					Vector2(node.triangle->points[(i+1)%3].x, node.triangle->points[(i+1)%3].y),
-					color_l,
-					thickness_l
-				);
-			}
-			++idx_l;
+			PackedVector2Array arr;
+			arr.append(Vector2(cdt.vertices[tr.vertices[0]].x, cdt.vertices[tr.vertices[0]].y));
+			arr.append(Vector2(cdt.vertices[tr.vertices[1]].x, cdt.vertices[tr.vertices[1]].y));
+			arr.append(Vector2(cdt.vertices[tr.vertices[2]].x, cdt.vertices[tr.vertices[2]].y));
+			draw_colored_polygon(arr, Color(1.,0,0,0.5));
+			++i;
+			continue;
 		}
+		Color color_l = Color(1.,1.,1.,1.);
+		double thickness_l = i == _selected ? 5. : 1.;
+		for(size_t j : _path)
+		{
+			if(j==i) {
+				color_l = Color(0.,0.,1.,0.5);
+				thickness_l = 3.;
+			}
+		}
+		if(i == _selected ) {
+			color_l = Color(0.,1.,0.,0.5);
+		}
+
+		draw_line(
+			Vector2(cdt.vertices[tr.vertices[0]].x, cdt.vertices[tr.vertices[0]].y),
+			Vector2(cdt.vertices[tr.vertices[1]].x, cdt.vertices[tr.vertices[1]].y),
+			color_l,
+			thickness_l
+		);
+		draw_line(
+			Vector2(cdt.vertices[tr.vertices[1]].x, cdt.vertices[tr.vertices[1]].y),
+			Vector2(cdt.vertices[tr.vertices[2]].x, cdt.vertices[tr.vertices[2]].y),
+			color_l,
+			thickness_l
+		);
+		draw_line(
+			Vector2(cdt.vertices[tr.vertices[2]].x, cdt.vertices[tr.vertices[2]].y),
+			Vector2(cdt.vertices[tr.vertices[0]].x, cdt.vertices[tr.vertices[0]].y),
+			color_l,
+			thickness_l
+		);
+		++i;
 	}
 }
 
