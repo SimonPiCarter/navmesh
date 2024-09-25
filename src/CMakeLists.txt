@@ -11,6 +11,13 @@ add_library(navmesh
 target_include_directories(navmesh PUBLIC
     lib/)
 
+
+set(CDT_USE_AS_COMPILED_LIBRARY ON)
+add_subdirectory(cdt)
+
+target_include_directories(navmesh PUBLIC
+    cdt/include/)
+
 add_executable(app_1
     exe/app_1.cc)
 
