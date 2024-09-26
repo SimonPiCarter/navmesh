@@ -2,8 +2,10 @@
 
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <algorithm>
+#include <chrono>
 
 #include "ShortestPath.h"
+#include "FunnelAlgorithm.h"
 
 namespace godot {
 
@@ -142,16 +144,59 @@ void Triangulation::select(int x, int y)
 	}
 	if(old_l>=0 && _selected>=0)
 	{
+		auto start{std::chrono::high_resolution_clock::now()};
+
 		_path = CDT::shortest_path(cdt, old_l, _selected, forbidden_triangles);
-		UtilityFunctions::print("path");
-		for(size_t i : _path)
+
+		auto end{std::chrono::high_resolution_clock::now()};
+		std::chrono::duration<double> elapsed_seconds{end - start};
+		UtilityFunctions::print("path - time elapsed : ", elapsed_seconds.count() * 1000., "ms");
+
+		_debug.steps = 10000;
+		_debug.old = old_l;
+		_debug.target = _selected;
+		_debug.x = x;
+		_debug.y = y;
+
+		start = std::chrono::high_resolution_clock::now();
+
+		std::vector<CDT::V2d<double>> funnel = CDT::funnel_algorithm(
+			cdt,
+			_path,
+			center(cdt, cdt.triangles[old_l]), CDT::V2d<double>{x,y},
+			_debug);
+		_debug.steps = 0;
+		_funnel.clear();
+		for(auto v2 : funnel)
 		{
-			UtilityFunctions::print("\t", i);
+			_funnel.push_back(Vector2(v2.x, v2.y));
 		}
 		_selected = -1;
+		end = std::chrono::high_resolution_clock::now();
+		elapsed_seconds = end - start;
+		UtilityFunctions::print("funel - time elapsed : ", elapsed_seconds.count() * 1000., "ms");
 	}
 	queue_redraw();
 }
+
+void Triangulation::debug(int step)
+{
+
+	if(_debug.old >= 0 && _debug.target >= 0)
+	{
+		_path = CDT::shortest_path(cdt, _debug.old, _debug.target, forbidden_triangles);
+
+		_debug.steps = step;
+
+		std::vector<CDT::V2d<double>> funnel = CDT::funnel_algorithm(
+			cdt,
+			_path,
+			center(cdt, cdt.triangles[_debug.old]), CDT::V2d<double>{_debug.x,_debug.y},
+			_debug);
+	}
+	queue_redraw();
+}
+
 
 void Triangulation::_physics_process(double delta_p)
 {
@@ -164,6 +209,7 @@ void Triangulation::_bind_methods()
 	ClassDB::bind_method(D_METHOD("insert_edge", "x", "y"), &Triangulation::insert_edge);
 	ClassDB::bind_method(D_METHOD("finalize"), &Triangulation::finalize);
 	ClassDB::bind_method(D_METHOD("select", "x", "y"), &Triangulation::select);
+	ClassDB::bind_method(D_METHOD("debug", "step"), &Triangulation::debug);
 }
 
 void Triangulation::_draw()
@@ -213,6 +259,38 @@ void Triangulation::_draw()
 			thickness_l
 		);
 		++i;
+	}
+
+	for(size_t i = 0 ; i+1 < _funnel.size() ; ++i)
+	{
+		draw_line(
+			_funnel[i],
+			_funnel[i+1],
+			Color(0.5,1.,0.,0.5),
+			3
+		);
+	}
+
+	if(_debug.steps > 0)
+	{
+		draw_line(
+			_debug.orig,
+			_debug.left,
+			Color(1.,1,0,0.5),
+			5
+		);
+		draw_line(
+			_debug.orig,
+			_debug.right,
+			Color(0.,1,1,0.5),
+			5
+		);
+		draw_line(
+			_debug.orig,
+			_debug.candidate,
+			Color(1.,0,1,0.5),
+			5
+		);
 	}
 }
 

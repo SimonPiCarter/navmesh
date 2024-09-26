@@ -12,16 +12,30 @@
 
 namespace godot {
 
+
+struct FunnelDebug
+{
+	int old = 0;
+	int target = 0;
+	int x, y;
+	Vector2 orig;
+	Vector2 left;
+	Vector2 right;
+	Vector2 candidate;
+	int steps = 0;
+};
+
 class Triangulation : public Node2D {
 	GDCLASS(Triangulation, Node2D)
 
 public:
 	Triangulation() : cdt(CDT::detail::defaults::vertexInsertionOrder, CDT::IntersectingConstraintEdges::TryResolve, 0.001) {}
-	~Triangulation() { delete _graph; }
+	~Triangulation() {}
 	void init(int x, int y);
 	int insert_point(int x, int y, int forbidden);
 	void insert_edge(int idx_point_1, int idx_point_2);
 	void finalize();
+	void debug(int step);
 
 	void select(int x, int y);
 
@@ -41,6 +55,9 @@ private:
 	int _size_y = 0;
 	int _selected = -1;
 	std::vector<std::size_t> _path;
+	std::vector<Vector2> _funnel;
+
+	FunnelDebug _debug;
 };
 
 }
